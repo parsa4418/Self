@@ -884,4 +884,4 @@ class AdvancedFeatureEngine:
             if count < 1 or not spam_text:
                 await self.safe_edit(event, "❌ تعداد یا متن معتبر نیست.")
                 return True
-            await self.safe_edit(event, f"✅ ارسال {count} پ�
+            await self.safe_edit(event, f"✅ ارسال {count} پ�
