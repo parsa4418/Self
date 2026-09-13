@@ -8262,42 +8262,42 @@ class TelegramAuthBot(AdminPanelMixin):
                 logging.exception("Error while closing temporary login client")
     
     async def activate_selfbot(self, session_string: str, user_id: int, phone_number: str):
-        """اجرای سلف و انتظار برای پیام آماده‌بودن از پردازش فرزند."""
-        session_file = SESSIONS_DIR / f"session_{user_id}.txt"
-        try:
-            write_session_file(session_file, DATA_DIR, session_string)
-            self.update_selfbot_runtime(
-                user_id,
-                phone=str(phone_number),
-                session_file=str(session_file),
-                self_enabled=0,
-                self_status="activating",
-                self_last_error=None,
-                self_next_restart_at=None,
-            )
-            success, detail = await self.launch_saved_selfbot(
-                user_id,
-                reason="activation",
-                enable_watchdog=True,
-            )
-            if not success:
+            """اجرای سلف و انتظار برای پیام آماده‌بودن از پردازش فرزند."""
+            session_file = SESSIONS_DIR / f"session_{user_id}.txt"
+            try:
+                write_session_file(session_file, DATA_DIR, session_string)
                 self.update_selfbot_runtime(
                     user_id,
+                    phone=str(phone_number),
+                    session_file=str(session_file),
                     self_enabled=0,
-                    self_status="activation_failed",
-                    self_last_error=detail,
+                    self_status="activating",
+                    self_last_error=None,
                     self_next_restart_at=None,
                 )
-            return success
-        except Exception as exc:
-            logging.exception("Error activating selfbot: %s", exc)
-            await self.stop_selfbot(
-                user_id,
-                disable=True,
-                status="activation_failed",
-                detail=str(exc),
-            )
-            return False
+                success, detail = await self.launch_saved_selfbot(
+                    user_id,
+                    reason="activation",
+                    enable_watchdog=False,
+                )
+                if not success:
+                    self.update_selfbot_runtime(
+                        user_id,
+                        self_enabled=0,
+                        self_status="activation_failed",
+                        self_last_error=detail,
+                        self_next_restart_at=None,
+                    )
+                return success
+            except Exception as exc:
+                logging.exception("Error activating selfbot: %s", exc)
+                await self.stop_selfbot(
+                    user_id,
+                    disable=True,
+                    status="activation_failed",
+                    detail=str(exc),
+                )
+                return False
     
     async def cancel(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         user_id = update.message.from_user.id

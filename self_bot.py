@@ -280,92 +280,74 @@ class TelegramAccount:
         return sender_username == target.lstrip("@").lower()
         
     async def safe_initialize_client(self):
-        """اتصال ایمن با مدیریت خطا"""
-        self.last_startup_error = ""
-        try:
-            # یک Retry نباید Client قبلی را رها کند و Client دوم بسازد.
-            # در خطاهای مرحله Startup ابتدا اتصال قبلی را کاملاً جمع می‌کنیم.
-            if self.client is not None:
-                try:
-                    if self.client.is_connected():
-                        await self.client.disconnect()
-                except Exception:
-                    pass
-                self.client = None
-
-            print(f"🔄 در حال راه‌اندازی اکانت {self.phone}...")
-            
-            # ایجاد کلاینت با تنظیمات ضد فریز
-            self.client = TelegramClient(
-                StringSession(self.session_string), 
-                API_ID, 
-                API_HASH,
-                device_model="iPhone 15 Pro",
-                system_version="iOS 17.1",
-                app_version="10.0.0",
-                lang_code="fa",
-                system_lang_code="fa",
-                connection_retries=10,
-                request_retries=5,
-                auto_reconnect=True,
-                flood_sleep_threshold=120,
-                base_logger=None,
-            )
-            
-            # اتصال با timeout
-            await asyncio.wait_for(self.client.connect(), timeout=30)
-            
-            if not await self.client.is_user_authorized():
-                self.last_startup_error = (
-                    "سشن تلگرام نامعتبر یا باطل شده است"
-                )
-                print(f"❌ سشن برای {self.phone} نامعتبر است")
-                return False
-                
+            """اتصال ایمن با مدیریت خطا"""
+            self.last_startup_error = ""
             try:
-                me = await asyncio.wait_for(self.client.get_me(), timeout=10)
-                if me:
-                    self.owner_id = me.id
-                    self.connection_retries = 0
-                    # Authentication is only the first phase. Do NOT report
-                    # ready yet; the parent manager must see `ready` only
-                    # after the complete startup pipeline finishes.
-                    write_runtime_status(
-                        self.status_file,
-                        "starting",
-                        "Session معتبر است؛ در حال تکمیل راه‌اندازی سلف...",
-                    )
-                    print(f"✅ اکانت {self.phone} با موفقیت لاگین شد")
-                    print(f"👤 کاربر: {me.first_name} (ID: {me.id})")
-                    return True
-                else:
-                    self.last_startup_error = (
-                        "دریافت اطلاعات حساب تلگرام ناموفق بود"
-                    )
-                    print(f"❌ دریافت اطلاعات کاربر برای {self.phone} ناموفق بود")
-                    return False
-                    
-            except asyncio.TimeoutError:
-                self.last_startup_error = (
-                    "مهلت دریافت اطلاعات حساب تلگرام تمام شد"
+                print(f"🔄 در حال راه‌اندازی اکانت {self.phone}...")
+
+                # ایجاد کلاینت با تنظیمات ضد فریز
+                self.client = TelegramClient(
+                    StringSession(self.session_string), 
+                    API_ID, 
+                    API_HASH,
+                    device_model="iPhone 15 Pro",
+                    system_version="iOS 17.1",
+                    app_version="10.0.0",
+                    lang_code="fa",
+                    system_lang_code="fa",
+                    connection_retries=10,
+                    request_retries=5,
+                    auto_reconnect=True,
+                    flood_sleep_threshold=120,
+                    base_logger=None,
                 )
-                print(f"⏰ timeout دریافت اطلاعات کاربر برای {self.phone}")
+
+                # اتصال با timeout
+                await asyncio.wait_for(self.client.connect(), timeout=30)
+
+                if not await self.client.is_user_authorized():
+                    self.last_startup_error = (
+                        "سشن تلگرام نامعتبر یا باطل شده است"
+                    )
+                    print(f"❌ سشن برای {self.phone} نامعتبر است")
+                    return False
+
+                try:
+                    me = await asyncio.wait_for(self.client.get_me(), timeout=10)
+                    if me:
+                        self.owner_id = me.id
+                        self.connection_retries = 0
+                        print(f"✅ اکانت {self.phone} با موفقیت لاگین شد")
+                        print(f"👤 کاربر: {me.first_name} (ID: {me.id})")
+                        return True
+                    else:
+                        self.last_startup_error = (
+                            "دریافت اطلاعات حساب تلگرام ناموفق بود"
+                        )
+                        print(f"❌ دریافت اطلاعات کاربر برای {self.phone} ناموفق بود")
+                        return False
+
+                except asyncio.TimeoutError:
+                    self.last_startup_error = (
+                        "مهلت دریافت اطلاعات حساب تلگرام تمام شد"
+                    )
+                    print(f"⏰ timeout دریافت اطلاعات کاربر برای {self.phone}")
+                    return False
+                except Exception as e:
+                    self.last_startup_error = (
+                        f"خطا در دریافت اطلاعات حساب تلگرام: {e}"
+                    )
+                    print(f"❌ خطا در دریافت اطلاعات کاربر {self.phone}: {e}")
+                    return False
+
+            except asyncio.TimeoutError:
+                self.last_startup_error = "مهلت اتصال به تلگرام تمام شد"
+                print(f"⏰ timeout اتصال برای {self.phone}")
                 return False
             except Exception as e:
-                self.last_startup_error = (
-                    f"خطا در دریافت اطلاعات حساب تلگرام: {e}"
-                )
-                print(f"❌ خطا در دریافت اطلاعات کاربر {self.phone}: {e}")
+                self.last_startup_error = f"خطا در اتصال به تلگرام: {e}"
+                print(f"❌ خطا در راه‌اندازی کلاینت برای {self.phone}: {e}")
                 return False
-                
-        except asyncio.TimeoutError:
-            self.last_startup_error = "مهلت اتصال به تلگرام تمام شد"
-            print(f"⏰ timeout اتصال برای {self.phone}")
-            return False
-        except Exception as e:
-            self.last_startup_error = f"خطا در اتصال به تلگرام: {e}"
-            print(f"❌ خطا در راه‌اندازی کلاینت برای {self.phone}: {e}")
-            return False
     
     def start_background_task(self, coroutine, *, name: str) -> asyncio.Task:
         task = asyncio.create_task(coroutine, name=f"{name}:{self.phone}")
@@ -386,119 +368,90 @@ class TelegramAccount:
         self.background_tasks.clear()
 
     async def robust_initialize(self):
-        """راه‌اندازی مقاوم در برابر خطا"""
-        for attempt in range(self.max_retries):
-            try:
-                print(f"🔄 تلاش {attempt + 1}/{self.max_retries} برای راه‌اندازی {self.phone}")
-                
-                if await self.safe_initialize_client():
-                    # راه‌اندازی مؤلفه‌ها
-                    self.init_db()
-                    settings = self.get_data()
-                    try:
-                        min_interval = max(
-                            100,
-                            min(
-                                5000,
-                                int(
-                                    settings.get(
-                                        "send_queue_min_interval_ms",
-                                        "900",
-                                    )
+            """راه‌اندازی مقاوم در برابر خطا"""
+            for attempt in range(self.max_retries):
+                try:
+                    print(f"🔄 تلاش {attempt + 1}/{self.max_retries} برای راه‌اندازی {self.phone}")
+
+                    if await self.safe_initialize_client():
+                        # راه‌اندازی مؤلفه‌ها
+                        self.init_db()
+                        settings = self.get_data()
+                        try:
+                            min_interval = max(
+                                100,
+                                min(
+                                    5000,
+                                    int(
+                                        settings.get(
+                                            "send_queue_min_interval_ms",
+                                            "900",
+                                        )
+                                    ),
                                 ),
-                            ),
+                            )
+                        except (TypeError, ValueError):
+                            min_interval = 900
+                        self.send_queue = SmartSendQueue(
+                            min_interval_seconds=min_interval / 1000,
+                            state_callback=self.queue_state_changed,
                         )
-                    except (TypeError, ValueError):
-                        min_interval = 900
-                    self.send_queue = SmartSendQueue(
-                        min_interval_seconds=min_interval / 1000,
-                        state_callback=self.queue_state_changed,
-                    )
-                    self.send_queue.start()
-                    try:
-                        self.client._smart_send_queue = self.send_queue
-                    except (AttributeError, TypeError):
-                        pass
-                    self.feature_engine = FeatureEngine(self)
-
-                    # Startup must not fail because an optional feature/network
-                    # operation failed. Most importantly, do not perform the
-                    # historical global private-chat cleanup during startup.
-                    startup_steps = (
-                        ("safe_join_channels", self.safe_join_channels),
-                        ("set_online_status", self.set_online_status),
-                        ("register_handlers", self.register_handlers),
-                        ("load_secretary_messages", self.load_secretary_messages),
-                        ("load_auto_forward_settings", self.load_auto_forward_settings),
-                        ("apply_presence_name_emoji", lambda: self.apply_presence_name_emoji(force=True)),
-                    )
-                    for startup_name, startup_factory in startup_steps:
+                        self.send_queue.start()
                         try:
-                            await startup_factory()
-                        except Exception as startup_exc:
-                            print(
-                                f"⚠️ مرحله {startup_name} برای {self.phone} "
-                                f"ناموفق بود اما اجرای سلف ادامه پیدا می‌کند: "
-                                f"{type(startup_exc).__name__}: {startup_exc}"
-                            )
+                            self.client._smart_send_queue = self.send_queue
+                        except (AttributeError, TypeError):
+                            pass
+                        self.feature_engine = FeatureEngine(self)
+                        await self.safe_join_channels()
+                        await self.set_online_status()
+                        await self.register_handlers()
+                        await self.load_secretary_messages()
+                        await self.load_auto_forward_settings()
+                        if self.send_startup_message_once and not self.startup_message_was_sent():
+                            try:
+                                await self.send_startup_message()
+                                self.mark_startup_message_sent()
+                            except Exception as startup_exc:
+                                print(f"⚠️ پیام فعال‌سازی سلف ارسال نشد: {type(startup_exc).__name__}: {startup_exc}")
+                        await self.apply_presence_name_emoji(force=True)
 
-                    # The activation card is persistent per account.  A process
-                    # restart, Render restart, or watchdog recovery must never
-                    # create another copy in Saved Messages.
-                    if self.send_startup_message_once and not self.startup_message_was_sent():
-                        try:
-                            await self.send_startup_message()
-                            self.mark_startup_message_sent()
-                        except Exception as startup_exc:
-                            print(
-                                f"⚠️ پیام فعال‌سازی سلف ارسال نشد: "
-                                f"{type(startup_exc).__name__}: {startup_exc}"
-                            )
+                        self.is_running = True
+                        self.feature_engine.start_background_tasks()
 
-                    self.is_running = True
-                    self.feature_engine.start_background_tasks()
-                    
-                    # شروع تسک‌های پس‌زمینه با مدیریت خطا
-                    self.start_background_task(
-                        self.safe_update_profile_time(), name="profile-clock"
-                    )
-                    self.start_background_task(
-                        self.safe_maintain_online_status(), name="presence"
-                    )
-                    self.start_background_task(
-                        self.health_monitor(), name="health"
-                    )
-                    self.start_background_task(
-                        self.scheduled_message_loop(), name="scheduled-once"
-                    )
-                    self.start_background_task(
-                        self.check_expiration(), name="expiration"
-                    )
+                        # شروع تسک‌های پس‌زمینه با مدیریت خطا
+                        self.start_background_task(
+                            self.safe_update_profile_time(), name="profile-clock"
+                        )
+                        self.start_background_task(
+                            self.safe_maintain_online_status(), name="presence"
+                        )
+                        self.start_background_task(
+                            self.health_monitor(), name="health"
+                        )
+                        self.start_background_task(
+                            self.scheduled_message_loop(), name="scheduled-once"
+                        )
+                        self.start_background_task(
+                            self.check_expiration(), name="expiration"
+                        )
 
-                    # `ready` is emitted only after the complete startup
-                    # pipeline and background tasks are initialized.
-                    write_runtime_status(
-                        self.status_file,
-                        "ready",
-                        "Session معتبر، Client متصل و راه‌اندازی کامل شد.",
-                    )
-                    print(f"✅ اکانت {self.phone} با موفقیت راه‌اندازی شد")
-                    return True
-                    
-                else:
-                    wait_time = (attempt + 1) * 10
-                    print(f"⏳ انتظار {wait_time} ثانیه قبل از تلاش مجدد...")
-                    await asyncio.sleep(wait_time)
-                    
-            except Exception as e:
-                print(f"❌ خطا در راه‌اندازی (تلاش {attempt + 1}): {e}")
-                if self.send_queue is not None:
-                    await self.send_queue.close()
-                    self.send_queue = None
-                await asyncio.sleep(15)
-        
-        print(f"❌ راه‌اندازی اکانت {self.phone} پس از {self.max_retries} تلاش ناموفق بود")
-        return False
+                        print(f"✅ اکانت {self.phone} با موفقیت راه‌اندازی شد")
+                        return True
+
+                    else:
+                        wait_time = (attempt + 1) * 10
+                        print(f"⏳ انتظار {wait_time} ثانیه قبل از تلاش مجدد...")
+                        await asyncio.sleep(wait_time)
+
+                except Exception as e:
+                    print(f"❌ خطا در راه‌اندازی (تلاش {attempt + 1}): {e}")
+                    if self.send_queue is not None:
+                        await self.send_queue.close()
+                        self.send_queue = None
+                    await asyncio.sleep(15)
+
+            print(f"❌ راه‌اندازی اکانت {self.phone} پس از {self.max_retries} تلاش ناموفق بود")
+            return False
 
     async def health_monitor(self):
         """مانیتورینگ سلامت اکانت"""
@@ -3283,106 +3236,40 @@ class TelegramAccount:
             return False
     
     async def run(self):
-        """اجرای اکانت؛ قطع اتصال شبکه نباید به معنی پایان پردازش باشد."""
-        try:
-            success = await self.robust_initialize()
-            if not success:
-                write_runtime_status(
-                    self.status_file,
-                    "failed",
-                    self.last_startup_error
-                    or "راه‌اندازی کلاینت تلگرام ناموفق بود",
-                )
-                print(f"❌ اکانت {self.phone} راه‌اندازی نشد")
-                return
-
-            write_runtime_status(self.status_file, "ready")
-            print(f"🚀 اکانت {self.phone} در حال اجرا است...")
-
-            # Telethon normally reconnects by itself, but run_until_disconnected()
-            # can return when the underlying connection is closed.  Do not let
-            # that return terminate the whole selfbot process: keep the same
-            # authenticated Session/Client alive and reconnect it.
-            while not self.shutdown_requested:
-                try:
+            """اجرای اکانت"""
+            try:
+                success = await self.robust_initialize()
+                if success:
+                    write_runtime_status(self.status_file, "ready")
+                    print(f"🚀 اکانت {self.phone} در حال اجرا است...")
                     await self.client.run_until_disconnected()
-                except asyncio.CancelledError:
-                    raise
-                except Exception as exc:
-                    self.last_startup_error = f"خطای حلقه اتصال: {exc}"
-                    print(
-                        f"⚠️ حلقه اتصال {self.phone} خطا داد: "
-                        f"{type(exc).__name__}: {exc}"
-                    )
-
-                if self.shutdown_requested:
-                    break
-
-                print(
-                    f"🔌 اتصال {self.phone} قطع شد؛ "
-                    "در حال بازیابی همان Session..."
-                )
-                write_runtime_status(
-                    self.status_file,
-                    "reconnecting",
-                    "اتصال قطع شد؛ بازیابی همان Session در حال انجام است.",
-                )
-
-                recovered = False
-                for attempt in range(1, 6):
-                    if self.shutdown_requested:
-                        break
-                    try:
-                        recovered = await self.recover_connection()
-                    except Exception as exc:
-                        recovered = False
-                        print(
-                            f"⚠️ تلاش بازیابی {attempt}/5 برای {self.phone} "
-                            f"ناموفق بود: {type(exc).__name__}: {exc}"
-                        )
-                    if recovered:
-                        write_runtime_status(self.status_file, "ready")
-                        print(
-                            f"✅ اتصال {self.phone} با همان Session "
-                            f"بازیابی شد (تلاش {attempt}/5)"
-                        )
-                        break
-                    await asyncio.sleep(min(5 * attempt, 30))
-
-                if not recovered and not self.shutdown_requested:
-                    # The authenticated Session is still the source of truth.
-                    # If a transient network outage lasts longer, keep the
-                    # process alive and let the next cycle retry instead of
-                    # reporting a login/activation failure.
+                else:
                     write_runtime_status(
                         self.status_file,
-                        "reconnecting",
-                        "اتصال هنوز برقرار نشده؛ تلاش بعدی ادامه دارد.",
+                        "failed",
+                        self.last_startup_error
+                        or "راه‌اندازی کلاینت تلگرام ناموفق بود",
                     )
-                    await asyncio.sleep(10)
-
-        except asyncio.CancelledError:
-            self.shutdown_requested = True
-            raise
-        except Exception as e:
-            write_runtime_status(self.status_file, "failed", e)
-            print(f"❌ خطا در اجرای اکانت {self.phone}: {e}")
-        finally:
-            self.shutdown_requested = True
-            self.is_running = False
-            await self.stop_background_tasks()
-            if self.feature_engine is not None:
-                try:
-                    await self.feature_engine.stop_background_tasks()
-                except Exception:
-                    pass
-            if self.send_queue is not None:
-                await self.send_queue.close()
-            if self.client is not None:
-                try:
-                    await self.client.disconnect()
-                except Exception:
-                    pass
+                    print(f"❌ اکانت {self.phone} راه‌اندازی نشد")
+            except Exception as e:
+                write_runtime_status(self.status_file, "failed", e)
+                print(f"❌ خطا در اجرای اکانت {self.phone}: {e}")
+            finally:
+                self.shutdown_requested = True
+                self.is_running = False
+                await self.stop_background_tasks()
+                if self.feature_engine is not None:
+                    try:
+                        await self.feature_engine.stop_background_tasks()
+                    except Exception:
+                        pass
+                if self.send_queue is not None:
+                    await self.send_queue.close()
+                if self.client is not None:
+                    try:
+                        await self.client.disconnect()
+                    except Exception:
+                        pass
 
 async def create_session_file(phone, session_file):
     """ایجاد فایل سشن جدید"""
